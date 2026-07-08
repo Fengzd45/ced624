@@ -121,12 +121,48 @@ def sync_from_feishu():
         person_dir = DATA_DIR / name
         person_dir.mkdir(exist_ok=True)
         has_new_file = False
+        
+        # ====== ✨ 优化：自动识别文本字段并生成首行标题 ======
+        # 1. 模糊匹配可能存在的字段名
+        text_content = None
+        possible_keys = ["文本", "文字资料", "文本资料"]
+        for key in possible_keys:
+            if fields.get(key) and isinstance(fields.get(key), str):
+                text_content = fields.get(key)
+                break  # 找到第一个非空字符串就跳出循环
+        
+        # 2. 如果找到了文本内容，开始处理
+        if text_content:
+            txt_filename = "简介.txt"
+            save_path = person_dir / txt_filename
+            
+            if not save_path.exists() or FULL_SYNC:
+                print(f"📄 保存文本资料: {name}/{txt_filename}")
+                
+                # 3. 分离首行作为标题，剩余作为正文
+                lines = text_content.split('\n')
+                if len(lines) > 1:
+                    title = lines[0].strip()  # 第一行作为标题
+                    body = '\n'.join(lines[1:]).strip()  # 剩余行作为正文
+                    # 组装成整洁的格式：标题居中，下方留空一行再接正文
+                    formatted_text = f"========== {title} ==========\n\n{body}"
+                else:
+                    # 如果只有一行字，就直接当纯文本
+                    formatted_text = text_content
+
+                # 4. 使用 utf-8 写入 txt 文件
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(formatted_text)
+                
+                has_new_file = True
+            else:
+                print(f"   ⏭️ 简介已存在，跳过: {name}/{txt_filename}")
+        # ====== ✨ 结束文本优化逻辑 ======
 
         # 处理【图片音视频】附件
         media_field = fields.get("图片音视频")
         if media_field and isinstance(media_field, list):
             for media in media_field:
-                # ⚠️ 重点修复：过滤掉换行符、回车符、制表符
                 filename = media.get("name", "media.jpg").replace('\n', '').replace('\r', '').replace('\t', '').strip()
                 download_url = media.get("url")
                 if not download_url:
@@ -140,25 +176,6 @@ def sync_from_feishu():
                     has_new_file = True
                 else:
                     print(f"❌ 媒体下载失败: {name}/{filename}")
-
-        # 处理【文本资料】附件
-        text_field = fields.get("文本资料")
-        if text_field and isinstance(text_field, list):
-            for text_att in text_field:
-                # ⚠️ 重点修复：过滤掉换行符、回车符、制表符
-                filename = text_att.get("name", "文章.txt").replace('\n', '').replace('\r', '').replace('\t', '').strip()
-                download_url = text_att.get("url")
-                if not download_url:
-                    print(f"   ⚠️ 文本资料无 URL: {filename}")
-                    continue
-                save_path = person_dir / filename
-                if save_path.exists() and not FULL_SYNC:
-                    continue
-                if download_file(download_url, save_path, token):
-                    print(f"✅ 文本资料: {name}/{filename}")
-                    has_new_file = True
-                else:
-                    print(f"❌ 文本资料下载失败: {name}/{filename}")
 
         if has_new_file:
             synced_count += 1

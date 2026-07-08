@@ -2,10 +2,10 @@ name: 飞书定时同步
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # 每30分钟自动同步一次
-  workflow_dispatch:        # 支持手动在网页上点按钮触发同步
+    - cron: '0 18 * * *'  # 每天北京时间凌晨2点同步一次
+  workflow_dispatch:        # 支持手动触发
 
-# 👇 关键修复1：显式声明该工作流拥有“写入仓库”的权限
+# 👇 新增：显式声明该工作流拥有“写入”权限
 permissions:
   contents: write
 
@@ -38,8 +38,8 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add -A
           
-          # 👇 关键修复2：如果没有变更则跳过提交，避免错误；提交信息加 [skip ci] 防止死循环
-          git diff --quiet && git diff --staged --quiet || git commit -m "Auto sync from Feishu [skip ci]"
+          # 没有变更则跳过提交
+          git diff --quiet && git diff --staged --quiet || git commit -m "飞书自动同步 [skip ci]"
           
-          # 👇 关键修复3：使用系统内置的 GITHUB_TOKEN 进行身份验证并推送！
+          # 👇 关键修复：一定要指向你当前的仓库名 Fengzd45/2zcu592
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}

@@ -18,14 +18,12 @@ if not all([APP_ID, APP_SECRET, APP_TOKEN, TABLE_ID]):
 DATA_DIR = Path("资料文件夹")
 DATA_DIR.mkdir(exist_ok=True)
 MANIFEST_PATH = Path("manifest.json")
-LAST_RUN_FILE = Path("last_run_time.txt")  # 用于记录上次同步时间，避免全量重下
+LAST_RUN_FILE = Path("last_run_time.txt")
 
-# 支持命令行传参：python sync_feishu.py --full-sync
 FULL_SYNC = "--full-sync" in sys.argv
 
 # ================== 飞书 API ==================
 def get_tenant_access_token():
-    """获取飞书租户访问令牌"""
     url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
     payload = {"app_id": APP_ID, "app_secret": APP_SECRET}
     resp = requests.post(url, json=payload, timeout=10)
@@ -36,7 +34,6 @@ def get_tenant_access_token():
     return data["tenant_access_token"]
 
 def get_all_records(token):
-    """获取多维表所有记录（支持分页并打印详细调试日志）"""
     url = f"https://open.feishu.cn/open-apis/bitable/v1/apps/{APP_TOKEN}/tables/{TABLE_ID}/records"
     headers = {"Authorization": f"Bearer {token}"}
     all_records = []
@@ -54,7 +51,6 @@ def get_all_records(token):
         resp = requests.get(url, headers=headers, params=params, timeout=15)
         resp.raise_for_status()
         
-        # 打印原始返回的 JSON，方便排查“为什么是空”的问题
         data = resp.json()
         print(f"🔍 飞书原始返回（第 {page_num} 页）: {json.dumps(data, ensure_ascii=False)}")
 
@@ -79,7 +75,6 @@ def get_all_records(token):
     return all_records
 
 def download_file(url, save_path, token):
-    """下载飞书附件"""
     headers = {"Authorization": f"Bearer {token}"}
     try:
         resp = requests.get(url, headers=headers, stream=True, timeout=30)
@@ -97,7 +92,6 @@ def download_file(url, save_path, token):
         return False
 
 def sync_from_feishu():
-    """主同步函数"""
     print("🔄 开始同步飞书数据...")
     if FULL_SYNC:
         print("▶️ 检测到 --full-sync 参数，强制全量同步并覆盖")
@@ -107,13 +101,9 @@ def sync_from_feishu():
         else:
             print("⏱️ 首次运行，触发全量同步")
     
-    # 1. 获取 token
     token = get_tenant_access_token()
-    
-    # 2. 获取所有记录
     records = get_all_records(token)
     
-    # 3. 判断结果（核心排查点）
     if not records:
         print("⚠️ 没有获取到任何记录。")
         print("💡 排查提示：如果飞书返回的是空列表 []，请务必去飞书表格 -> 右上角 ... -> 权限管理 -> 添加本应用的 APP_ID 作为协作者！")
@@ -136,7 +126,8 @@ def sync_from_feishu():
         media_field = fields.get("图片音视频")
         if media_field and isinstance(media_field, list):
             for media in media_field:
-                filename = media.get("name", "media.jpg")
+                # ⚠️ 重点修复：过滤掉换行符、回车符、制表符
+                filename = media.get("name", "media.jpg").replace('\n', '').replace('\r', '').replace('\t', '').strip()
                 download_url = media.get("url")
                 if not download_url:
                     print(f"   ⚠️ 媒体文件无 URL: {filename}")
@@ -154,7 +145,8 @@ def sync_from_feishu():
         text_field = fields.get("文本资料")
         if text_field and isinstance(text_field, list):
             for text_att in text_field:
-                filename = text_att.get("name", "文章.txt")
+                # ⚠️ 重点修复：过滤掉换行符、回车符、制表符
+                filename = text_att.get("name", "文章.txt").replace('\n', '').replace('\r', '').replace('\t', '').strip()
                 download_url = text_att.get("url")
                 if not download_url:
                     print(f"   ⚠️ 文本资料无 URL: {filename}")
@@ -182,7 +174,6 @@ def sync_from_feishu():
     with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
     
-    # 5. 记录本次同步时间（用于下次增量）
     import time
     LAST_RUN_FILE.write_text(time.strftime("%Y-%m-%d %H:%M:%S"))
     

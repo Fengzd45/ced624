@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import re
 import requests
 from pathlib import Path
 
@@ -122,42 +123,46 @@ def sync_from_feishu():
         person_dir.mkdir(exist_ok=True)
         has_new_file = False
         
-        # ====== ✨ 优化：自动识别文本字段并生成首行标题 ======
-        # 1. 模糊匹配可能存在的字段名
+        # ====== 文本字段处理：首行作为标题/文件名 ======
         text_content = None
         possible_keys = ["文本", "文字资料", "文本资料"]
         for key in possible_keys:
             if fields.get(key) and isinstance(fields.get(key), str):
                 text_content = fields.get(key)
-                break  # 找到第一个非空字符串就跳出循环
+                break
         
-        # 2. 如果找到了文本内容，开始处理
         if text_content:
-            txt_filename = "简介.txt"
+            # 提取首行作为标题/文件名
+            lines = text_content.split('\n')
+            first_line = lines[0].strip() if lines else "无标题"
+            
+            # 清理文件名中的非法字符（Windows/Unix 不兼容字符）
+            safe_filename = re.sub(r'[<>:"/\\|?*]', '_', first_line)
+            safe_filename = safe_filename.strip() or "无标题"
+            
+            # 限制文件名长度，避免过长
+            if len(safe_filename) > 100:
+                safe_filename = safe_filename[:100]
+            
+            txt_filename = f"{safe_filename}.txt"
             save_path = person_dir / txt_filename
             
+            # 检查文件是否已存在（按新文件名检查）
             if not save_path.exists() or FULL_SYNC:
                 print(f"📄 保存文本资料: {name}/{txt_filename}")
                 
-                # 3. 分离首行作为标题，剩余作为正文
-                lines = text_content.split('\n')
-                if len(lines) > 1:
-                    title = lines[0].strip()  # 第一行作为标题
-                    body = '\n'.join(lines[1:]).strip()  # 剩余行作为正文
-                    # 组装成整洁的格式：标题居中，下方留空一行再接正文
-                    formatted_text = f"========== {title} ==========\n\n{body}"
-                else:
-                    # 如果只有一行字，就直接当纯文本
-                    formatted_text = text_content
-
-                # 4. 使用 utf-8 写入 txt 文件
+                # 正文 = 除首行外的内容
+                body = '\n'.join(lines[1:]).strip()
+                formatted_text = f"========== {first_line} ==========\n\n{body}"
+                
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(formatted_text)
                 
                 has_new_file = True
             else:
-                print(f"   ⏭️ 简介已存在，跳过: {name}/{txt_filename}")
-        # ====== ✨ 结束文本优化逻辑 ======
+                print(f"   ⏭️ 文件已存在，跳过: {name}/{txt_filename}")
+        else:
+            print(f"   ℹ️ {name} 无文本内容")
 
         # 处理【图片音视频】附件
         media_field = fields.get("图片音视频")
@@ -180,7 +185,7 @@ def sync_from_feishu():
         if has_new_file:
             synced_count += 1
 
-    # 4. 生成 manifest.json
+    # 生成 manifest.json
     print("📋 正在生成 manifest.json ...")
     manifest = {}
     for person_dir in DATA_DIR.iterdir():

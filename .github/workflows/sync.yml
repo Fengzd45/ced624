@@ -1,45 +1,47 @@
-name: 飞书定时同步
+name: 飞书定时同步[cite: 1]
 
 on:
   schedule:
-    - cron: '0 18 * * *'  # 每天北京时间凌晨2点同步一次
-  workflow_dispatch:        # 支持手动触发
+    - cron: '0 18 * * *'  # 每天北京时间凌晨2点同步一次[cite: 1]
+  workflow_dispatch:        # 支持手动触发[cite: 1]
+  repository_dispatch:      # 👇 新增：支持通过飞书发送的 HTTP 触发
+    types: [feishu-new-record]
 
-# 👇 新增：显式声明该工作流拥有“写入”权限
+# 显式声明该工作流拥有“写入”权限[cite: 1]
 permissions:
-  contents: write
+  contents: write[cite: 1]
 
 jobs:
   sync-data:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest[cite: 1]
     steps:
-      - name: 拉取当前仓库代码
-        uses: actions/checkout@v3
+      - name: 拉取当前仓库代码[cite: 1]
+        uses: actions/checkout@v3[cite: 1]
       
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v4
+      - name: 设置 Python 环境[cite: 1]
+        uses: actions/setup-python@v4[cite: 1]
         with:
-          python-version: '3.10'
+          python-version: '3.10'[cite: 1]
       
-      - name: 安装依赖
-        run: pip install requests
+      - name: 安装依赖[cite: 1]
+        run: pip install requests[cite: 1]
       
-      - name: 执行同步脚本
-        run: python sync_feishu.py
+      - name: 执行同步脚本[cite: 1]
+        run: python sync_feishu.py[cite: 1]
         env:
-          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
-          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-          FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
-          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}[cite: 1]
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}[cite: 1]
+          FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}[cite: 1]
+          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}[cite: 1]
       
-      - name: 将下载好的新资料和清单提交回仓库
+      - name: 将下载好的新资料和清单提交回仓库[cite: 1]
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add -A
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"[cite: 1]
+          git config --local user.name "github-actions[bot]"[cite: 1]
+          git add -A[cite: 1]
           
           # 没有变更则跳过提交
-          git diff --quiet && git diff --staged --quiet || git commit -m "飞书自动同步 [skip ci]"
+          git diff --quiet && git diff --staged --quiet || git commit -m "飞书自动同步 [skip ci]"[cite: 1]
           
-          # 👇 关键修复：一定要指向你当前的仓库名 Fengzd45/2zcu592
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+          # 指向当前仓库名 Fengzd45/2zcu592 并推送更新[cite: 1]
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}[cite: 1]
